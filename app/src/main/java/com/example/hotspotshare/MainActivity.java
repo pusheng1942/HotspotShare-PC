@@ -6,30 +6,22 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
+import android.content.pm.ActivityInfo;
 import android.content.pm.PackageManager;
 import android.media.MediaPlayer;
 import android.net.ConnectivityManager;
-import android.net.NetworkInfo;
-import android.net.wifi.WifiInfo;
-import android.net.wifi.WifiManager;
-import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
-import android.os.Handler;
 import android.os.IBinder;
-import android.os.Message;
 import android.telephony.TelephonyManager;
-import android.util.Log;
 import android.view.View;
-import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.CompoundButton;
-import android.widget.ListView;
 import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import androidx.annotation.RequiresApi;
+
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
@@ -71,10 +63,12 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         initWifiHotspotDisplay();
         enableMobileData(true);
         setMobileDataState(true);
+        setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT); //forbid the screen display in landscape
 
-        if(enableMobileData(true))
-            mobileDataState.setText("enable");
-        else mobileDataState.setText("disable");
+//        if(enableMobileData(true))
+//            mobileDataState.setText("enable");
+//        else mobileDataState.setText("disable");
+        mobileDataState.setText(SsidAndPreshareKeyToJNI.transmitSsidAndPreshareKeyToJNI("! China"));
 
 
         wifiSwitch.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
