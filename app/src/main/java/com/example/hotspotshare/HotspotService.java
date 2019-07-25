@@ -45,6 +45,10 @@ public class HotspotService extends Service {
         super.onDestroy();
         hotspotService.flag = false;
         turnOffHotspot();
+
+        hotspotStateInfo.SSID =  null;
+        hotspotStateInfo.preShareKey = null;
+        hotspotStateInfo.hotSpotEnabledState = false;
     }
 
 

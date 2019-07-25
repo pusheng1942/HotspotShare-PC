@@ -2,8 +2,8 @@
 // Created by gp on 7/23/19.
 //
 #include <jni.h>
-#include <string.h>
-#include <stdio.h>
+#include <cstring>
+#include <cstdio>
 
 extern "C"
 JNIEXPORT jstring JNICALL
@@ -15,7 +15,7 @@ Java_com_example_hotspotshare_SsidAndPreshareKeyToJNI_transmitSsidAndPreshareKey
     env->ReleaseStringUTFChars(prompt,str);
 
     char result[80];
-    strcpy(result,"Cheer Up");
+    strcpy(result,"Hello");
     strcat(result,str);
     puts(result);
 

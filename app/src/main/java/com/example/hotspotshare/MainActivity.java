@@ -1,19 +1,18 @@
 package com.example.hotspotshare;
 import android.Manifest;
-import android.app.Activity;
-import android.app.ActivityManager;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
-import android.content.pm.ActivityInfo;
 import android.content.pm.PackageManager;
 import android.media.MediaPlayer;
 import android.net.ConnectivityManager;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.os.IBinder;
 import android.telephony.TelephonyManager;
+import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.CompoundButton;
@@ -28,12 +27,18 @@ import androidx.core.content.ContextCompat;
 
 import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.StringReader;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.nio.channels.FileChannel;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -47,48 +52,53 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     Button stopButton;
     TextView ipListView;
     TextView mobileDataState;
+    TextView tvFilePath;
 
     boolean isAllNecessaryPermissionsEnabled = false;
     private MediaPlayer mediaPlayer = new MediaPlayer();
     private HotspotService.HotspotBinder binder;
     private HotspotService hotspotService;
-    boolean isServiceHaveBeenOpened = false;
+    boolean isServiceHasBeenOpened = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         requestAllNecessaryPermissions();
-        initMediaPlayer();
+
         initWifiHotspotDisplay();
         enableMobileData(true);
         setMobileDataState(true);
-        setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT); //forbid the screen display in landscape
 
-//        if(enableMobileData(true))
-//            mobileDataState.setText("enable");
-//        else mobileDataState.setText("disable");
-        mobileDataState.setText(SsidAndPreshareKeyToJNI.transmitSsidAndPreshareKeyToJNI("! China"));
+        File srcFile = new File(Environment.getExternalStorageDirectory(), "huawei-8211-dream-it-possible.mp3");  //  audio source file path
+        File destDir = FileOperation.getFilePath(this,"sonic_audio"); // destination directory file path
 
+        FileOperation.copyFileToAppDirectory(srcFile, destDir);
+
+        initMediaPlayer();
+
+        mobileDataState.setText(SsidAndPreshareKeyToJNI.transmitSsidAndPreshareKeyToJNI("! Intel"));
 
         wifiSwitch.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
             @Override
             public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
 
                 if(isChecked && isAllNecessaryPermissionsEnabled) {
-                    isServiceHaveBeenOpened = true;
+                    isServiceHasBeenOpened = true;
                     Intent bindIntent = new Intent(MainActivity.this, HotspotService.class);
                     bindService(bindIntent, serviceConnection, BIND_AUTO_CREATE);
                 }
-                else if(isServiceHaveBeenOpened) {
+                else if(isServiceHasBeenOpened) {
                     wifiStateView.setText("HotspotState:Closed\n");
                     wifiDisplayView.setText("Ssid:"+"null"+"\n"+"Pwd:"+"null");
                     unbindService(serviceConnection);
-                    isServiceHaveBeenOpened = false;
+                    isServiceHasBeenOpened = false;
                 }
             }
         });
     }
+
+
 
     public ServiceConnection serviceConnection = new ServiceConnection() {
         @Override
@@ -196,6 +206,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         wifiSwitch = findViewById(R.id.wifi_switch);
         mobileDataState = findViewById(R.id.mobile_data_state);
 
+
         playButton =  findViewById(R.id.button_play);
         pauseButton = findViewById(R.id.button_pause);
         stopButton =  findViewById(R.id.button_stop);
@@ -210,7 +221,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
     private void initMediaPlayer() {
         try {
-            File file = new File(Environment.getExternalStorageDirectory(), "huawei-8211-dream-it-possible.mp3");
+            File file = new File(this.getExternalFilesDir("sonic_audio"), "huawei-8211-dream-it-possible.mp3");
             mediaPlayer.setDataSource(file.getPath()); // set the audio file path
             mediaPlayer.setLooping(true);
             mediaPlayer.prepare();
@@ -302,5 +313,4 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                 break;
         }
     }
-
 }
