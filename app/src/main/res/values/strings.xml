@@ -1,3 +1,7 @@
 <resources>
     <string name="app_name">HotspotShare</string>
+    <string name="button_play">Play</string>
+    <string name="button_pause">Pause</string>
+    <string name="button_stop">Stop</string>
+    <string name="hotspot_state">HotspotState</string>
 </resources>

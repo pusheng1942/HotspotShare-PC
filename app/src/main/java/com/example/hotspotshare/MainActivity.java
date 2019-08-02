@@ -7,7 +7,6 @@ import android.content.ServiceConnection;
 import android.content.pm.PackageManager;
 import android.media.MediaPlayer;
 import android.net.ConnectivityManager;
-import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.os.IBinder;
@@ -16,49 +15,50 @@ import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.CompoundButton;
+import android.widget.SeekBar;
 import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
-
-
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
 import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.io.StringReader;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.nio.channels.FileChannel;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
+import java.util.Timer;
+import java.util.TimerTask;
 
 public class MainActivity extends AppCompatActivity implements View.OnClickListener {
     TextView wifiDisplayView;
     TextView wifiStateView;
-    Switch wifiSwitch;
+    TextView ipListView;
 
+    TextView tvAudioCurtentTime;
+    TextView tvAudioTotalTime;
+    SeekBar  sbAudioBar;
+
+    TextView mobileDataState;
+    Switch wifiSwitch;
     Button playButton;
     Button pauseButton;
     Button stopButton;
-    TextView ipListView;
-    TextView mobileDataState;
-    TextView tvFilePath;
 
     boolean isAllNecessaryPermissionsEnabled = false;
     private MediaPlayer mediaPlayer = new MediaPlayer();
-    private HotspotService.HotspotBinder binder;
+
     private HotspotService hotspotService;
     boolean isServiceHasBeenOpened = false;
+    boolean isSeekbarChaning = false;  //互斥变量，防止进度条和定时器冲突。
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -70,9 +70,8 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         enableMobileData(true);
         setMobileDataState(true);
 
-        File srcFile = new File(Environment.getExternalStorageDirectory(), "huawei-8211-dream-it-possible.mp3");  //  audio source file path
+        File srcFile = new File(Environment.getExternalStorageDirectory(), "Dream_It_Possible.flac");  //  audio source file path
         File destDir = FileOperation.getFilePath(this,"sonic_audio"); // destination directory file path
-
         FileOperation.copyFileToAppDirectory(srcFile, destDir);
 
         initMediaPlayer();
@@ -99,11 +98,10 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     }
 
 
-
     public ServiceConnection serviceConnection = new ServiceConnection() {
         @Override
         public void onServiceConnected(ComponentName name, IBinder service) {
-            binder = (HotspotService.HotspotBinder) service;
+            HotspotService.HotspotBinder binder = (HotspotService.HotspotBinder) service;
             hotspotService = binder.getService();
 
             hotspotService.setOnDatCallback(new HotspotService.OnDataCallback() {
@@ -183,29 +181,12 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         return false;
     }
 
-
-    public void closeHotSpot(){
-        ConnectivityManager connManager = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
-        Field iConnMgrField;
-        try {
-            iConnMgrField = connManager.getClass().getDeclaredField("mService");
-            iConnMgrField.setAccessible(true);
-            Object iConnMgr = iConnMgrField.get(connManager);
-            Class<?> iConnMgrClass = Class.forName(iConnMgr.getClass().getName());
-            Method stopTethering = iConnMgrClass.getMethod("stopTethering", int.class);
-            stopTethering.invoke(iConnMgr, false);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
-
     private void initWifiHotspotDisplay(){
         wifiDisplayView = findViewById(R.id.wifi_display);
         wifiStateView = findViewById(R.id.wifi_state);
         ipListView = findViewById(R.id.ip_list);
         wifiSwitch = findViewById(R.id.wifi_switch);
         mobileDataState = findViewById(R.id.mobile_data_state);
-
 
         playButton =  findViewById(R.id.button_play);
         pauseButton = findViewById(R.id.button_pause);
@@ -217,51 +198,6 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         wifiStateView.setText("HotspotState:Closed\n");
         wifiDisplayView.setText("Ssid:"+"null"+"\n"+"Pwd:"+"null");
         ipListView.setText("Device Num:"+ getConnectedIP().size()+"\n");
-    }
-
-    private void initMediaPlayer() {
-        try {
-            File file = new File(this.getExternalFilesDir("sonic_audio"), "huawei-8211-dream-it-possible.mp3");
-            mediaPlayer.setDataSource(file.getPath()); // set the audio file path
-            mediaPlayer.setLooping(true);
-            mediaPlayer.prepare();
-
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
-
-    @Override
-    public void onClick(View v) {
-        switch (v.getId()) {
-            case R.id.button_play:
-                if (!mediaPlayer.isPlaying()) {
-                    mediaPlayer.start(); // just when the hotspot has been opened,the audio can be played
-                }
-                break;
-            case R.id.button_pause:
-                if (mediaPlayer.isPlaying()) {
-                    mediaPlayer.pause();
-                }
-                break;
-            case R.id.button_stop:
-                if (mediaPlayer.isPlaying()) {
-                    mediaPlayer.reset();
-                    initMediaPlayer();
-                }
-                break;
-            default:
-                break;
-        }
-    }
-
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        if (mediaPlayer != null) {
-            mediaPlayer.stop();
-            mediaPlayer.release();
-        }
     }
 
     void ipListAndNumDisplay(){
@@ -311,6 +247,146 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                     isAllNecessaryPermissionsEnabled = true;
                 }
                 break;
+        }
+    }
+
+    public void initMediaPlayer(){
+        audioWedgtLink();
+        File file = new File(this.getExternalFilesDir("sonic_audio"), "Dream_It_Possible.flac");
+        try {
+            mediaPlayer.setDataSource(file.getPath()); // set the audio file path
+            mediaPlayer.setLooping(true);
+            mediaPlayer.prepare();
+            mediaPlayer.setOnPreparedListener(preparedListener);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        int audioDuration = mediaPlayer.getDuration();
+        int audioCurrentPosition = mediaPlayer.getCurrentPosition();
+
+        tvAudioCurtentTime.setText(formatTime(audioCurrentPosition));
+        tvAudioTotalTime.setText(formatTime(audioDuration));
+    }
+
+    boolean mediaPreparedStateFlag;
+    MediaPlayer.OnPreparedListener preparedListener = new MediaPlayer.OnPreparedListener() {
+        @Override
+        public void onPrepared(MediaPlayer mp) {
+            mediaPreparedStateFlag = true;
+            Log.e("MediaPlayer","Audio Prepared");
+        }
+    };
+
+    public void audioWedgtLink()
+    {
+        tvAudioCurtentTime = findViewById(R.id.audio_current_time);
+        tvAudioTotalTime = findViewById(R.id.audio_total_time);
+        sbAudioBar = findViewById(R.id.audio_seekbar);
+
+        sbAudioBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar sbAudioBar, int progress, boolean fromUser) {
+                int audioDuration = mediaPlayer.getDuration();//获取音乐总时长
+                int position = mediaPlayer.getCurrentPosition();//获取当前播放的位置
+                tvAudioCurtentTime.setText(formatTime(position));//开始时间
+                tvAudioTotalTime.setText(formatTime(audioDuration));//总时长
+            }
+            @Override
+            public void onStartTrackingTouch(SeekBar seekBar) {
+                isSeekbarChaning = true;
+            }
+            @Override
+            public void onStopTrackingTouch(SeekBar seekBar) {
+                isSeekbarChaning = false;
+                mediaPlayer.seekTo(seekBar.getProgress());//在当前位置播放
+                tvAudioCurtentTime.setText(formatTime(mediaPlayer.getCurrentPosition()/1000));
+            }
+        });
+    }
+
+    public String calculateTime(int time){
+        int minute;
+        int second;
+        if(time > 60){
+            minute = time / 60;
+            second = time % 60;
+            if(minute >= 0 && minute < 10){
+                if(second >= 0 && second < 10){
+                    return "0"+minute+":"+"0"+second;
+                }else {
+                    return "0"+minute+":"+second;
+                }
+            }else {
+                if(second >= 0 && second < 10){
+                    return minute+":"+"0"+second;
+                }else {
+                    return minute+":"+second;
+                }
+            }
+        }else if(time < 60){
+            second = time;
+            if(second >= 0 && second < 10){
+                return "00:"+"0"+second;
+            }else {
+                return "00:"+ second;
+            }
+        }
+        return null;
+    }
+
+    private String formatTime(int length){
+        Date date = new Date(length);
+        SimpleDateFormat simpleDateFormat = new SimpleDateFormat("mm:ss");
+        String totalTime = simpleDateFormat.format(date);
+        return totalTime;
+    }
+
+    @Override
+    public void onClick(View v) {
+        switch (v.getId()) {
+            case R.id.button_play:
+                if (!mediaPlayer.isPlaying() && mediaPreparedStateFlag) {
+                    mediaPlayer.start(); // just when the hotspot has been opened,the audio can be played
+
+                    int duration = mediaPlayer.getDuration();//get the audio total time length
+                    sbAudioBar.setMax(duration);//set the max value of the seekbar
+                    Timer timer = new Timer();
+                    timer.schedule(new TimerTask() {
+                        @Override
+                        public void run() {
+                            if(!isSeekbarChaning){
+                                sbAudioBar.setProgress(mediaPlayer.getCurrentPosition());
+                            }
+                        }
+                    },0,50);
+                }
+                break;
+
+            case R.id.button_pause:
+                if (mediaPlayer.isPlaying()) {
+                    mediaPlayer.pause();
+                }
+                break;
+
+            case R.id.button_stop:
+                if (mediaPlayer.isPlaying()) {
+                    mediaPlayer.reset();
+                    initMediaPlayer();
+                }
+                break;
+
+            default:
+                break;
+        }
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if (mediaPlayer != null) {
+            mediaPlayer.stop();
+            mediaPlayer.release();
         }
     }
 }

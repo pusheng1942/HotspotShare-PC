@@ -73,7 +73,7 @@ public class HotspotService extends Service {
                     mOnDataCallback.onDataChange(hotspotStateInfo);  //Transport the hotspot state info
                 }
                 try{
-                    Thread.sleep(50);
+                    Thread.sleep(10);
                 }catch (InterruptedException e){
                     e.printStackTrace();
                 }
